@@ -536,6 +536,7 @@
   </div>
 
   <script>
+    const API_BASE = ''; // Docker 同源部署留空；Cloudflare Pages 前端时改为 Vercel API 地址
     let authFileData = null;
     let authFileName = '';
     let lastResult = null;
@@ -810,7 +811,7 @@
       healthStatus = null;
 
       try {
-        const resp = await fetch('/api/check', {
+        const resp = await fetch(API_BASE + '/api/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ auth_file: authFileData }),
@@ -1003,7 +1004,7 @@
       };
 
       try {
-        const resp = await fetch('/api/invite', {
+        const resp = await fetch(API_BASE + '/api/invite', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
