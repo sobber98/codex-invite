@@ -704,11 +704,19 @@
       }
     }
 
+    async function readClipboard() {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        return await navigator.clipboard.readText();
+      }
+      const text = prompt('请粘贴内容到此处:');
+      return text || '';
+    }
+
     async function pasteAuthJson() {
       try {
-        const text = await navigator.clipboard.readText();
+        const text = await readClipboard();
         if (!text.trim()) {
-          showToast('剪贴板为空', 'error');
+          showToast('剪贴板内容为空', 'error');
           return;
         }
         processPasted(text.trim());
@@ -892,9 +900,11 @@
 
     async function pasteEmails() {
       try {
-        const text = await navigator.clipboard.readText();
-        appendEmails(text);
-        showToast('已从剪贴板粘贴', 'success');
+        const text = await readClipboard();
+        if (text) {
+          appendEmails(text);
+          showToast('已从剪贴板粘贴', 'success');
+        }
       } catch (err) {
         showToast('无法读取剪贴板: ' + err.message, 'error');
       }
