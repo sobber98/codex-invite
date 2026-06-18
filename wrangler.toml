@@ -1,4 +1,2 @@
 name = "codex-inviter"
-
-[pages]
-build_output = "."
+compatibility_date = "2026-06-18"
