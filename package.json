@@ -1,0 +1,28 @@
+{
+  "name": "codex-inviter",
+  "version": "1.0.0",
+  "description": "独立 Codex 邀请工具，支持 Vercel 一键部署",
+  "type": "module",
+  "private": false,
+  "author": "1837620622",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/1837620622/codex-inviter.git"
+  },
+  "keywords": [
+    "codex",
+    "openai",
+    "chatgpt",
+    "vercel",
+    "invite",
+    "serverless",
+    "referral"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.38.0"
+  }
+}

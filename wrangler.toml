@@ -1,0 +1,4 @@
+name = "codex-inviter"
+
+[pages]
+build_output = "."

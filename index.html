@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex Inviter · 一键发送 Codex 邀请</title>
+  <meta name="description" content="独立 Codex 邀请工具，上传原始账号认证文件并填写被邀请账号邮箱，即可批量发送 ChatGPT Codex 邀请。支持 Vercel 一键部署。">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%2314b8a6'/%3E%3Cpath d='M25 35 L50 50 L25 65 Z M50 50 L75 50' stroke='white' stroke-width='8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4',
+              400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e',
+              800: '#115e59', 900: '#134e4a',
+            }
+          },
+          animation: {
+            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+            'fade-in': 'fadeIn 0.4s ease-out',
+            'blob': 'blob 7s infinite',
+            'pop': 'pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          },
+          keyframes: {
+            slideUp: {
+              '0%': { opacity: '0', transform: 'translateY(20px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            fadeIn: {
+              '0%': { opacity: '0' },
+              '100%': { opacity: '1' },
+            },
+            blob: {
+              '0%': { transform: 'translate(0px, 0px) scale(1)' },
+              '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+              '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+              '100%': { transform: 'translate(0px, 0px) scale(1)' },
+            },
+            pop: {
+              '0%': { transform: 'scale(0.9)', opacity: '0' },
+              '100%': { transform: 'scale(1)', opacity: '1' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .glass {
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.08);
+    }
+    .dark .glass {
+      background: rgba(15, 23, 42, 0.68);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.35);
+    }
+    .glass-input {
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+    }
+    .dark .glass-input {
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+    }
+    .drop-active {
+      border-color: #14b8a6 !important;
+      background: rgba(20, 184, 166, 0.12) !important;
+      transform: scale(1.01);
+    }
+    .gradient-text {
+      background: linear-gradient(135deg, #14b8a6 0%, #3b82f6 50%, #8b5cf6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .step-number {
+      background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+    }
+    .btn-glow:hover {
+      box-shadow: 0 0 24px -4px rgba(20, 184, 166, 0.5);
+    }
+    .blob {
+      position: fixed;
+      filter: blur(70px);
+      opacity: 0.28;
+      z-index: -1;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .confetti {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      pointer-events: none;
+      z-index: 100;
+      animation: fall 3s ease-out forwards;
+    }
+    @keyframes fall {
+      0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+    }
+    .sidebar-link {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.625rem 0.75rem;
+      border-radius: 0.75rem;
+      font-size: 0.875rem; font-weight: 500;
+      color: #475569;
+      transition: all 0.2s;
+    }
+    .dark .sidebar-link { color: #94a3b8; }
+    .sidebar-link:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .dark .sidebar-link:hover {
+      background: #1e293b;
+      color: #f1f5f9;
+    }
+    .sidebar-link.active {
+      background: #f0fdfa;
+      color: #0f766e;
+      box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+    }
+    .dark .sidebar-link.active {
+      background: rgba(19, 78, 74, 0.3);
+      color: #5eead4;
+    }
+    .nav-glass {
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+    }
+    .dark .nav-glass {
+      background: rgba(15, 23, 42, 0.72);
+      border-bottom: 1px solid rgba(30, 41, 59, 0.6);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .blob, .animate-pulse-slow, .animate-slide-up, .animate-fade-in, .animate-pop { animation: none !important; }
+      .confetti { display: none; }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300 overflow-x-hidden">
+
+  <!-- Background blobs -->
+  <div class="fixed inset-0 overflow-hidden pointer-events-none">
+    <div class="blob bg-brand-300 dark:bg-brand-700 w-72 h-72 top-0 left-1/4 animate-blob"></div>
+    <div class="blob bg-blue-300 dark:bg-blue-700 w-96 h-96 top-1/3 right-1/4 animate-blob" style="animation-delay: 2s;"></div>
+    <div class="blob bg-violet-300 dark:bg-violet-700 w-80 h-80 bottom-0 left-1/3 animate-blob" style="animation-delay: 4s;"></div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+
+  <div class="flex min-h-screen relative">
+
+    <!-- Mobile sidebar overlay -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 hidden lg:hidden" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed lg:sticky top-0 left-0 z-50 h-screen w-64 glass border-r border-slate-200/60 dark:border-slate-800/60 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 flex flex-col">
+      <div class="h-16 flex items-center px-5 border-b border-slate-200/60 dark:border-slate-800/60">
+        <a href="/" class="flex items-center gap-3 group">
+          <div class="w-9 h-9 rounded-xl step-number flex items-center justify-center text-white shadow-lg shadow-brand-500/30 transition-transform group-hover:scale-105">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+          </div>
+          <span class="font-bold text-lg tracking-tight">Codex <span class="gradient-text">Inviter</span></span>
+        </a>
+      </div>
+
+      <nav class="flex-1 overflow-y-auto p-4 space-y-1">
+        <a href="#invite" class="sidebar-link active" data-section="invite" onclick="setActiveNav(this)">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+          发送邀请
+        </a>
+        <a href="#tutorial" class="sidebar-link" data-section="tutorial" onclick="setActiveNav(this)">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          使用教程
+        </a>
+        <a href="#history" class="sidebar-link" data-section="history" onclick="setActiveNav(this)">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          发送记录
+          <span id="navHistoryCount" class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">0</span>
+        </a>
+      </nav>
+
+      <div class="p-4 border-t border-slate-200/60 dark:border-slate-800/60">
+        <div class="glass rounded-xl p-3">
+          <p class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">当前版本</p>
+          <p class="text-xs font-semibold">v1.0.0 · 稳定版</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <div class="flex-1 flex flex-col min-w-0">
+
+      <!-- Header -->
+      <header class="nav-glass sticky top-0 z-30 h-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 h-full flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <h1 class="text-lg font-bold hidden sm:block">一键发送 Codex 邀请</h1>
+          </div>
+          <div class="flex items-center gap-2">
+            <a href="https://github.com/1837620622/codex-inviter" target="_blank" rel="noopener noreferrer" class="p-2 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors" title="GitHub">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            </a>
+            <button id="themeToggle" class="p-2 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors" title="切换主题">
+              <svg id="sunIcon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+              <svg id="moonIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main -->
+      <main class="relative flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-10">
+
+        <!-- Hero -->
+        <div class="text-center mb-10 animate-fade-in">
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/60 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-xs font-medium text-slate-600 dark:text-slate-400 mb-4 shadow-sm">
+            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            独立部署 · 源码公开 · 安全可控
+          </div>
+          <h1 class="text-3xl sm:text-5xl font-extrabold mb-4 tracking-tight">
+            发送 <span class="gradient-text">Codex</span> 邀请
+          </h1>
+          <p class="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+            上传原始账号认证文件，填写被邀请账号邮箱，批量发送邀请。简单、快速、可审计。
+          </p>
+        </div>
+
+        <!-- Two-column layout -->
+        <div class="grid grid-cols-1 xl:grid-cols-[380px_minmax(0,1fr)] gap-6 items-start mb-10">
+
+          <!-- Left: Original Account + Settings + History -->
+          <div class="space-y-6 animate-slide-up">
+
+            <!-- Original Account -->
+            <section class="glass rounded-2xl p-5 sm:p-6" id="invite">
+              <div class="flex items-center gap-3 mb-4">
+                <span class="step-number w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-brand-500/30">1</span>
+                <h2 class="font-semibold">原始账号</h2>
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">用于发送邀请的 Codex 账号，上传 CPA 认证 JSON 文件。</p>
+
+              <div id="dropZone" class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-6 text-center cursor-pointer transition-all duration-200 hover:border-brand-400 hover:bg-brand-50/30 dark:hover:bg-brand-900/10 mb-2">
+                <input type="file" id="fileInput" accept=".json,application/json" class="hidden">
+                <div id="dropDefault" class="pointer-events-none">
+                  <div class="w-12 h-12 mx-auto mb-2 rounded-xl bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300 flex items-center justify-center">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                  </div>
+                  <p class="text-xs font-medium text-slate-700 dark:text-slate-200">点击或拖拽上传 <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">auth.json</code></p>
+                </div>
+                <div id="dropSuccess" class="hidden pointer-events-none">
+                  <div class="w-12 h-12 mx-auto mb-2 rounded-xl bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 flex items-center justify-center">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  </div>
+                  <p id="fileName" class="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate"></p>
+                  <p id="fileMeta" class="text-[10px] text-slate-500 dark:text-slate-500 mt-0.5"></p>
+                </div>
+              </div>
+              <button onclick="pasteAuthJson()" class="w-full text-[10px] py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-1.5 mb-3">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                从剪贴板粘贴 JSON
+              </button>
+
+              <div id="filePreview" class="hidden p-3 rounded-lg bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                <div class="space-y-1.5 text-xs">
+                  <div class="flex items-center gap-2">
+                    <span class="text-slate-500 dark:text-slate-400 shrink-0">发件账号:</span>
+                    <span id="previewEmail" class="font-medium text-slate-800 dark:text-slate-200 truncate">-</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-slate-500 dark:text-slate-400 shrink-0">Account ID:</span>
+                    <span id="previewAccountId" class="font-mono text-slate-600 dark:text-slate-400 truncate">-</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-slate-500 dark:text-slate-400 shrink-0">账号类型:</span>
+                    <span id="previewPlanType" class="font-medium text-slate-600 dark:text-slate-400">-</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-slate-500 dark:text-slate-400 shrink-0">账号状态:</span>
+                    <span id="previewHealth" class="text-amber-500 font-medium">未检测</span>
+                  </div>
+                </div>
+                <div class="flex gap-2 mt-3">
+                  <button onclick="checkAccountHealth()" id="checkHealthBtn" class="flex-1 text-[10px] px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors flex items-center justify-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    检测账号
+                  </button>
+                  <button onclick="clearFile()" class="flex-1 text-[10px] px-2 py-1.5 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">重置认证文件</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- Settings -->
+            <section class="glass rounded-2xl p-5 sm:p-6">
+              <button id="toggleAdvanced" class="flex items-center justify-between w-full group">
+                <div class="flex items-center gap-3">
+                  <span class="step-number w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-brand-500/30">3</span>
+                  <h2 class="font-semibold">高级设置</h2>
+                </div>
+                <svg id="advancedIcon" class="w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+              </button>
+
+              <div id="advancedPanel" class="hidden mt-4 space-y-3">
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Referral Key</label>
+                  <input id="refKey" type="text" value="codex_referral_persistent_invite" class="w-full rounded-lg glass-input px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">语言</label>
+                    <input id="language" type="text" value="zh-CN" class="w-full rounded-lg glass-input px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Originator</label>
+                    <input id="originator" type="text" value="Codex Desktop" class="w-full rounded-lg glass-input px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">User-Agent</label>
+                  <input id="userAgent" type="text" value="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36" class="w-full rounded-lg glass-input px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Cookie（可选）</label>
+                  <input id="cookie" type="text" placeholder="__cf_bm=..." class="w-full rounded-lg glass-input px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+                </div>
+              </div>
+            </section>
+
+            <!-- History -->
+            <section class="glass rounded-2xl p-5 sm:p-6" id="history">
+              <button id="toggleHistory" class="flex items-center justify-between w-full group">
+                <div class="flex items-center gap-3">
+                  <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg bg-slate-500 dark:bg-slate-600">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  </div>
+                  <h2 class="font-semibold">发送记录</h2>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span id="historyCount" class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">0</span>
+                  <svg id="historyIcon" class="w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </button>
+              <div id="historyPanel" class="hidden mt-4">
+                <div id="historyList" class="space-y-2 max-h-64 overflow-auto pr-1"></div>
+                <button onclick="clearHistory()" class="mt-3 text-[10px] text-slate-500 hover:text-red-500 transition-colors">清空记录</button>
+              </div>
+            </section>
+
+            <!-- Tutorial -->
+            <section class="glass rounded-2xl p-5 sm:p-6" id="tutorial">
+              <button id="toggleTutorial" class="flex items-center justify-between w-full group">
+                <div class="flex items-center gap-3">
+                  <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg bg-blue-500 dark:bg-blue-600">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  </div>
+                  <h2 class="font-semibold">使用教程</h2>
+                </div>
+                <svg id="tutorialIcon" class="w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+              </button>
+              <div id="tutorialPanel" class="hidden mt-4 text-xs text-slate-600 dark:text-slate-400 space-y-3 leading-relaxed">
+                <div>
+                  <p class="font-semibold text-slate-700 dark:text-slate-300 mb-1">1. 上传认证文件</p>
+                  <p>拖拽 auth.json 到虚线框，或点击「从剪贴板粘贴 JSON」按钮。系统会自动解析账号信息并启动健康检测。</p>
+                </div>
+                <div>
+                  <p class="font-semibold text-slate-700 dark:text-slate-300 mb-1">2. 等待健康检测</p>
+                  <p>检测通过后显示「正常在线」和计划类型（Plus/Team/Pro/Free）。只有通过检测的账号才能发送邀请。</p>
+                </div>
+                <div>
+                  <p class="font-semibold text-slate-700 dark:text-slate-300 mb-1">3. 填写被邀请邮箱</p>
+                  <p>每行一个邮箱，或用逗号/空格/分号分隔。支持 TXT/CSV 导入或剪贴板粘贴，最多 50 个。</p>
+                </div>
+                <div>
+                  <p class="font-semibold text-slate-700 dark:text-slate-300 mb-1">4. 发送邀请（双重保险）</p>
+                  <p>点击发送后，OpenAI 自动发邮件给被邀请人。页面同时显示 invite_url 链接，可手动转发，确保万无一失。</p>
+                </div>
+                <div>
+                  <p class="font-semibold text-slate-700 dark:text-slate-300 mb-1">5. 被邀请人操作</p>
+                  <p>被邀请人点击链接注册并登录，发送一条消息即可完成推荐。</p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Right: Invited Accounts + Send + Results -->
+          <div class="space-y-6 animate-slide-up" style="animation-delay: 0.05s;">
+
+            <!-- Invited Accounts -->
+            <section class="glass rounded-2xl p-5 sm:p-6">
+              <div class="flex items-center gap-3 mb-4">
+                <span class="step-number w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-brand-500/30">2</span>
+                <h2 class="font-semibold">被邀请账号</h2>
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">填写要接收 Codex 邀请的邮箱地址，每行一个或用逗号/空格/分号分隔。</p>
+
+              <div class="relative">
+                <textarea id="emails" rows="10" class="w-full rounded-xl glass-input px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all resize-y" placeholder="name1@example.com&#10;name2@example.com&#10;name3@example.com"></textarea>
+                <div class="absolute bottom-3 right-3">
+                  <span id="emailCount" class="text-xs px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">0 / 50</span>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
+                <div class="flex items-center gap-2">
+                  <button onclick="importEmails()" class="text-xs px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    导入邮箱
+                  </button>
+                  <input type="file" id="emailImportInput" accept=".txt,.csv,text/plain,text/csv" class="hidden">
+                  <button onclick="pasteEmails()" class="text-xs px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                    从剪贴板粘贴
+                  </button>
+                </div>
+                <button id="sendBtn" disabled class="btn-glow group relative inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:bg-slate-400 disabled:opacity-60 disabled:shadow-none disabled:cursor-not-allowed text-white font-semibold text-sm shadow-lg shadow-brand-500/25 transition-all">
+                  <span id="btnText">发送邀请</span>
+                  <svg id="btnIcon" class="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                  <svg id="btnLoader" class="hidden w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                </button>
+              </div>
+            </section>
+
+            <!-- Results -->
+            <section id="resultSection" class="hidden animate-slide-up">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold">邀请结果</h3>
+                <div class="flex items-center gap-2">
+                  <button onclick="copyAllLinks()" class="text-xs px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    复制全部链接
+                  </button>
+                  <button onclick="downloadResult()" class="text-xs px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    下载 JSON
+                  </button>
+                  <button onclick="clearResult()" class="text-xs px-3 py-1.5 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800/50 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">清空</button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <div class="glass rounded-xl p-3 text-center">
+                  <div id="statStatus" class="text-xl font-bold text-slate-800 dark:text-white">-</div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">状态码</div>
+                </div>
+                <div class="glass rounded-xl p-3 text-center">
+                  <div id="statSuccess" class="text-xl font-bold">-</div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">是否成功</div>
+                </div>
+                <div class="glass rounded-xl p-3 text-center">
+                  <div id="statLinks" class="text-xl font-bold text-brand-600 dark:text-brand-400">-</div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">邀请链接</div>
+                </div>
+                <div class="glass rounded-xl p-3 text-center">
+                  <div id="statEmails" class="text-xl font-bold text-slate-800 dark:text-white">-</div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">发送邮箱</div>
+                </div>
+              </div>
+
+              <div id="linksCard" class="hidden glass rounded-2xl p-5 mb-4 border border-brand-200 dark:border-brand-900/50">
+                <h4 class="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                  邀请链接
+                </h4>
+                <div id="linksList" class="space-y-2"></div>
+              </div>
+
+              <div class="glass rounded-2xl p-5">
+                <h4 class="text-sm font-semibold mb-3">原始响应</h4>
+                <pre id="rawResult" class="text-xs bg-slate-100 dark:bg-slate-950 rounded-lg p-4 overflow-auto max-h-80 text-slate-700 dark:text-slate-300"></pre>
+              </div>
+            </section>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- Footer -->
+      <footer class="relative border-t border-slate-200/60 dark:border-slate-800/60 bg-white/40 dark:bg-slate-950/40 backdrop-blur-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+            <div class="md:col-span-2">
+              <a href="/" class="flex items-center gap-3 mb-3">
+                <div class="w-8 h-8 rounded-lg step-number flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                </div>
+                <span class="font-bold text-lg tracking-tight">Codex <span class="gradient-text">Inviter</span></span>
+              </a>
+              <p class="text-xs text-slate-500 dark:text-slate-500 max-w-sm leading-relaxed">
+                第三方独立 Codex 邀请工具。认证文件仅在服务端用于调用 ChatGPT 邀请接口，不会被持久化存储。
+              </p>
+            </div>
+            <div>
+              <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100 mb-3">链接</h4>
+              <ul class="space-y-2 text-xs text-slate-500 dark:text-slate-400">
+                <li><a href="https://github.com/1837620622/codex-inviter" target="_blank" rel="noopener noreferrer" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">GitHub 仓库</a></li>
+                <li><a href="https://github.com/LTbinglingfeng/cpa-plugin-codex-invite" target="_blank" rel="noopener noreferrer" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">CPA 插件源码</a></li>
+
+              </ul>
+            </div>
+            <div>
+              <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100 mb-3">作者</h4>
+              <ul class="space-y-2 text-xs text-slate-500 dark:text-slate-400">
+                <li><span class="font-medium text-slate-700 dark:text-slate-300">传康Kk</span></li>
+                <li>TG: <a href="https://t.me/CK_AINB6" target="_blank" rel="noopener noreferrer" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">@CK_AINB6</a></li>
+
+              </ul>
+            </div>
+          </div>
+          <div class="pt-6 border-t border-slate-200/40 dark:border-slate-800/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-[10px] text-slate-400 dark:text-slate-600">
+            <p>© 2026 Codex Inviter. Open source under MIT.</p>
+            <p>Made with precision by 传康Kk</p>
+          </div>
+        </div>
+      </footer>
+
+    </div>
+  </div>
+
+  <script>
+    let authFileData = null;
+    let authFileName = '';
+    let lastResult = null;
+    let healthStatus = null;
+    const HISTORY_KEY = 'codexInviterHistory';
+
+    // Theme
+    function initTheme() {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (saved === 'dark' || (!saved && prefersDark)) {
+        document.documentElement.classList.add('dark');
+      }
+      updateThemeIcons();
+    }
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+      updateThemeIcons();
+    }
+    function updateThemeIcons() {
+      const isDark = document.documentElement.classList.contains('dark');
+      document.getElementById('sunIcon').classList.toggle('hidden', !isDark);
+      document.getElementById('moonIcon').classList.toggle('hidden', isDark);
+    }
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+    initTheme();
+
+    // Sidebar
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      const isOpen = !sidebar.classList.contains('-translate-x-full');
+      if (isOpen) {
+        sidebar.classList.add('-translate-x-full');
+        overlay.classList.add('hidden');
+      } else {
+        sidebar.classList.remove('-translate-x-full');
+        overlay.classList.remove('hidden');
+      }
+    }
+    function setActiveNav(el) {
+      document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+      el.classList.add('active');
+      if (window.innerWidth < 1024) toggleSidebar();
+    }
+
+    // Toast
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const el = document.createElement('div');
+      const colors = {
+        info: 'bg-slate-800 text-white',
+        success: 'bg-green-600 text-white',
+        error: 'bg-red-600 text-white',
+      };
+      const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+      el.className = `${colors[type]} px-4 py-3 rounded-lg shadow-2xl text-sm font-medium animate-slide-up flex items-center gap-2 min-w-[240px]`;
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'font-bold';
+      iconSpan.textContent = icon;
+      const msgSpan = document.createElement('span');
+      msgSpan.textContent = message;
+      el.appendChild(iconSpan);
+      el.appendChild(msgSpan);
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-8px)';
+        setTimeout(() => el.remove(), 250);
+      }, 3500);
+    }
+
+    // File upload
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) processFile(e.target.files[0]);
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drop-active');
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drop-active');
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drop-active');
+      const files = e.dataTransfer.files;
+      if (files.length > 0) processFile(files[0]);
+    });
+
+    function processFile(file) {
+      if (!file.name.endsWith('.json') && file.type !== 'application/json') {
+        showToast('请选择 JSON 格式的认证文件', 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          let raw = JSON.parse(e.target.result);
+          if (Array.isArray(raw)) {
+            if (raw.length === 0) throw new Error('数组为空');
+            raw = raw[0];
+          }
+          authFileData = raw;
+          authFileName = file.name;
+
+          document.getElementById('dropDefault').classList.add('hidden');
+          document.getElementById('dropSuccess').classList.remove('hidden');
+          document.getElementById('fileName').textContent = file.name;
+          document.getElementById('fileMeta').textContent = `${(e.target.result.length / 1024).toFixed(1)} KB · 已解析`;
+          document.getElementById('filePreview').classList.remove('hidden');
+
+          const email = extractEmail(authFileData);
+          const accountId = extractAccountId(authFileData);
+          const planType = extractPlanType(authFileData);
+          document.getElementById('previewEmail').textContent = email || '未识别到邮箱';
+          document.getElementById('previewAccountId').textContent = accountId || '未识别';
+          document.getElementById('previewPlanType').textContent = planType || '未识别';
+          document.getElementById('previewPlanType').className = planTypeClass(planType);
+
+          showToast('认证文件已加载，正在自动检测账号状态...', 'info');
+          updateSendButton();
+          checkAccountHealth();
+        } catch (err) {
+          showToast('JSON 解析失败: ' + err.message, 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function processPasted(raw) {
+      try {
+        let parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          if (parsed.length === 0) throw new Error('数组为空');
+          parsed = parsed[0];
+        }
+        authFileData = parsed;
+        authFileName = '剪贴板粘贴';
+
+        document.getElementById('dropDefault').classList.add('hidden');
+        document.getElementById('dropSuccess').classList.remove('hidden');
+        document.getElementById('fileName').textContent = '剪贴板 JSON';
+        document.getElementById('fileMeta').textContent = `${(raw.length / 1024).toFixed(1)} KB · 已粘贴`;
+        document.getElementById('filePreview').classList.remove('hidden');
+
+        const email = extractEmail(authFileData);
+        const accountId = extractAccountId(authFileData);
+        const planType = extractPlanType(authFileData);
+        document.getElementById('previewEmail').textContent = email || '未识别到邮箱';
+        document.getElementById('previewAccountId').textContent = accountId || '未识别';
+        document.getElementById('previewPlanType').className = planTypeClass(planType);
+
+        showToast('JSON 已粘贴，正在自动检测账号状态...', 'info');
+        updateSendButton();
+        checkAccountHealth();
+      } catch (err) {
+        showToast('剪贴板内容不是有效的 JSON: ' + err.message, 'error');
+      }
+    }
+
+    async function pasteAuthJson() {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text.trim()) {
+          showToast('剪贴板为空', 'error');
+          return;
+        }
+        processPasted(text.trim());
+      } catch (err) {
+        showToast('无法读取剪贴板: ' + err.message, 'error');
+      }
+    }
+
+    function clearFile() {
+      authFileData = null;
+      authFileName = '';
+      healthStatus = null;
+      fileInput.value = '';
+      document.getElementById('dropDefault').classList.remove('hidden');
+      document.getElementById('dropSuccess').classList.add('hidden');
+      document.getElementById('filePreview').classList.add('hidden');
+      document.getElementById('previewEmail').textContent = '-';
+      document.getElementById('previewAccountId').textContent = '-';
+      document.getElementById('previewPlanType').textContent = '-';
+      document.getElementById('previewPlanType').className = 'font-medium text-slate-600 dark:text-slate-400';
+      document.getElementById('previewHealth').textContent = '未检测';
+      document.getElementById('previewHealth').className = 'text-amber-500 font-medium';
+      updateSendButton();
+    }
+
+    function extractEmail(auth) {
+      const paths = [['email'], ['token_data', 'email'], ['user', 'email']];
+      return extractNested(auth, paths);
+    }
+
+    function extractAccountId(auth) {
+      const paths = [['account_id'], ['chatgpt_account_id'], ['token_data', 'account_id'], ['token_data', 'chatgpt_account_id'], ['tokens', 'account_id']];
+      return extractNested(auth, paths);
+    }
+
+    function decodeJwt(token) {
+      try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+        const base64url = parts[1];
+        const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+        const json = atob(padded);
+        return JSON.parse(json);
+      } catch { return null; }
+    }
+
+    function extractPlanType(auth) {
+      const idToken = extractNested(auth, [['id_token']]);
+      if (idToken) {
+        const payload = decodeJwt(idToken);
+        if (payload) {
+          const plan = extractNested(payload, [['https://api.openai.com/auth', 'chatgpt_plan_type']]);
+          if (plan) return plan;
+        }
+      }
+      const accessToken = extractNested(auth, [['access_token']]);
+      if (accessToken) {
+        const payload = decodeJwt(accessToken);
+        if (payload) {
+          const plan = extractNested(payload, [['https://api.openai.com/auth', 'chatgpt_plan_type']]);
+          if (plan) return plan;
+        }
+      }
+      const direct = extractNested(auth, [['plan_type']]) || extractNested(auth, [['chatgpt_plan_type']]);
+      return direct || '';
+    }
+
+    function extractNested(auth, paths) {
+      for (const path of paths) {
+        let cur = auth;
+        for (const key of path) {
+          if (!cur || typeof cur !== 'object') { cur = undefined; break; }
+          cur = cur[key];
+        }
+        if (typeof cur === 'string' && cur.trim()) return cur.trim();
+      }
+      return '';
+    }
+
+    function planTypeClass(type) {
+      const base = 'font-medium text-slate-600 dark:text-slate-400 px-1.5 py-px rounded text-xs uppercase tracking-wider ';
+      if (!type) return 'font-medium text-slate-600 dark:text-slate-400';
+      const t = type.toLowerCase();
+      if (t === 'plus') return base + 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300';
+      if (t === 'team') return base + 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300';
+      if (t === 'pro') return base + 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+      return base + 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
+    }
+
+    async function checkAccountHealth() {
+      if (!authFileData) {
+        showToast('请先上传认证文件', 'error');
+        return;
+      }
+      const btn = document.getElementById('checkHealthBtn');
+      const prev = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 检测中';
+      healthStatus = null;
+
+      try {
+        const resp = await fetch('/api/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ auth_file: authFileData }),
+        });
+        const data = await resp.json();
+        healthStatus = data;
+
+        const el = document.getElementById('previewHealth');
+        if (data.ok && data.status === 'alive') {
+          el.textContent = '正常在线';
+          el.className = 'text-green-600 dark:text-green-400 font-medium';
+          showToast('账号正常 (HTTP ' + data.status_code + ')，可发送邀请', 'success');
+        } else {
+          el.textContent = '账号异常 (HTTP ' + data.status_code + ')';
+          el.className = 'text-red-600 dark:text-red-400 font-medium';
+          showToast('账号异常，状态码 ' + data.status_code + '，请更换认证文件', 'error');
+        }
+      } catch (err) {
+        healthStatus = null;
+        showToast('检测失败: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = prev;
+        updateSendButton();
+      }
+    }
+
+    const emailsInput = document.getElementById('emails');
+    emailsInput.addEventListener('input', updateEmailCount);
+
+    function parseEmails() {
+      const split = emailsInput.value.split(/[,;\n\r\t ]+/).map(s => s.trim()).filter(Boolean);
+      const seen = new Set();
+      return split.filter(e => { const k = e.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+    }
+
+    function updateEmailCount() {
+      const emails = parseEmails();
+      const el = document.getElementById('emailCount');
+      el.textContent = `${emails.length} / 50`;
+      el.className = `text-xs px-2 py-1 rounded-full ${emails.length > 50 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`;
+      updateSendButton();
+    }
+
+    function updateSendButton() {
+      const emails = parseEmails();
+      const healthOk = healthStatus && healthStatus.ok && healthStatus.status === 'alive';
+      const valid = authFileData && emails.length > 0 && emails.length <= 50 && healthOk;
+      const btn = document.getElementById('sendBtn');
+      btn.disabled = !valid;
+      if (!authFileData) {
+        btn.title = '请先上传认证文件';
+      } else if (!healthOk) {
+        btn.title = '请先通过账号健康检测';
+      } else if (emails.length === 0) {
+        btn.title = '请填写被邀请邮箱';
+      } else if (emails.length > 50) {
+        btn.title = '邮箱数量超过上限 50';
+      } else {
+        btn.title = '';
+      }
+    }
+
+    function importEmails() {
+      document.getElementById('emailImportInput').click();
+    }
+
+    document.getElementById('emailImportInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        appendEmails(ev.target.result);
+        e.target.value = '';
+      };
+      reader.readAsText(file);
+    });
+
+    async function pasteEmails() {
+      try {
+        const text = await navigator.clipboard.readText();
+        appendEmails(text);
+        showToast('已从剪贴板粘贴', 'success');
+      } catch (err) {
+        showToast('无法读取剪贴板: ' + err.message, 'error');
+      }
+    }
+
+    function appendEmails(text) {
+      const current = emailsInput.value.trim();
+      const separator = current && !current.endsWith('\n') ? '\n' : '';
+      emailsInput.value = current + separator + text;
+      updateEmailCount();
+    }
+
+    document.getElementById('toggleAdvanced').addEventListener('click', () => {
+      const panel = document.getElementById('advancedPanel');
+      const icon = document.getElementById('advancedIcon');
+      panel.classList.toggle('hidden');
+      icon.style.transform = panel.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+    });
+
+    document.getElementById('toggleHistory').addEventListener('click', () => {
+      const panel = document.getElementById('historyPanel');
+      const icon = document.getElementById('historyIcon');
+      panel.classList.toggle('hidden');
+      icon.style.transform = panel.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+    });
+
+    document.getElementById('toggleTutorial').addEventListener('click', () => {
+      const panel = document.getElementById('tutorialPanel');
+      const icon = document.getElementById('tutorialIcon');
+      panel.classList.toggle('hidden');
+      icon.style.transform = panel.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+    });
+
+    function loadHistory() {
+      const list = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+      const container = document.getElementById('historyList');
+      container.innerHTML = '';
+      document.getElementById('historyCount').textContent = list.length;
+      document.getElementById('navHistoryCount').textContent = list.length;
+
+      if (list.length === 0) {
+        container.innerHTML = '<div class="text-xs text-slate-400 text-center py-4">暂无发送记录</div>';
+        return;
+      }
+
+      for (const item of list.slice().reverse()) {
+        const el = document.createElement('div');
+        el.className = 'p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs';
+        el.innerHTML = `
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-medium ${item.ok ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">${item.ok ? '成功' : '失败'}</span>
+            <span class="text-slate-400">${formatTime(item.time)}</span>
+          </div>
+          <div class="text-slate-600 dark:text-slate-400 truncate">${escapeHtml(item.from || '未知账号')}</div>
+          <div class="text-slate-500 dark:text-slate-500">${item.count || 0} 个邮箱</div>
+        `;
+        container.appendChild(el);
+      }
+    }
+
+    function saveHistory(data) {
+      const list = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+      list.push({
+        time: Date.now(),
+        ok: data.ok,
+        from: data.account?.email,
+        count: (data.emails || []).length,
+        status: data.status_code,
+      });
+      if (list.length > 50) list.shift();
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+      loadHistory();
+    }
+
+    function clearHistory() {
+      localStorage.removeItem(HISTORY_KEY);
+      loadHistory();
+      showToast('发送记录已清空', 'info');
+    }
+
+    function formatTime(ts) {
+      const d = new Date(ts);
+      return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+
+    document.getElementById('sendBtn').addEventListener('click', sendInvites);
+
+    async function sendInvites() {
+      const btn = document.getElementById('sendBtn');
+      const btnText = document.getElementById('btnText');
+      const btnIcon = document.getElementById('btnIcon');
+      const btnLoader = document.getElementById('btnLoader');
+
+      btn.disabled = true;
+      btnText.textContent = '发送中...';
+      btnIcon.classList.add('hidden');
+      btnLoader.classList.remove('hidden');
+
+      const payload = {
+        auth_file: authFileData,
+        emails: emailsInput.value,
+        referral_key: document.getElementById('refKey').value.trim(),
+        language: document.getElementById('language').value.trim(),
+        originator: document.getElementById('originator').value.trim(),
+        user_agent: document.getElementById('userAgent').value.trim(),
+        cookie: document.getElementById('cookie').value.trim(),
+      };
+
+      try {
+        const resp = await fetch('/api/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await resp.json();
+        lastResult = data;
+        renderResult(data);
+        saveHistory(data);
+
+        if (data.ok) {
+          showToast(`成功发送 ${data.emails?.length || 0} 封邀请`, 'success');
+          fireConfetti();
+        } else {
+          showToast(data.error || `请求失败 (HTTP ${data.status_code || resp.status})`, 'error');
+        }
+      } catch (err) {
+        showToast('网络请求失败: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btnText.textContent = '发送邀请';
+        btnIcon.classList.remove('hidden');
+        btnLoader.classList.add('hidden');
+        updateSendButton();
+      }
+    }
+
+    function renderResult(data) {
+      const section = document.getElementById('resultSection');
+      section.classList.remove('hidden');
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      document.getElementById('statStatus').textContent = data.status_code || '-';
+      const successEl = document.getElementById('statSuccess');
+      successEl.textContent = data.ok ? 'Y' : 'N';
+      successEl.className = `text-xl font-bold ${data.ok ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`;
+      document.getElementById('statLinks').textContent = (data.invites || []).length;
+      document.getElementById('statEmails').textContent = (data.emails || []).length;
+
+      const linksCard = document.getElementById('linksCard');
+      const linksList = document.getElementById('linksList');
+      linksList.innerHTML = '';
+
+      if (data.invites && data.invites.length > 0) {
+        linksCard.classList.remove('hidden');
+        for (const inv of data.invites) {
+          const url = inv.invite_url || inv.url || inv.InviteURL || '';
+          const email = inv.email || inv.Email || '';
+
+          const row = document.createElement('div');
+          row.className = 'flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 animate-pop';
+          row.innerHTML = `
+            <div class="flex-1 min-w-0">
+              <div class="text-xs text-slate-500 dark:text-slate-400 mb-0.5">${escapeHtml(email || '邀请链接')}</div>
+              <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="text-sm text-brand-600 dark:text-brand-400 hover:underline break-all">${escapeHtml(url || '-')}</a>
+            </div>
+            <button class="copy-btn shrink-0 p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors" title="复制链接" data-url="${escapeHtml(url)}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+            </button>
+          `;
+          linksList.appendChild(row);
+        }
+      } else {
+        linksCard.classList.add('hidden');
+      }
+
+      document.getElementById('rawResult').textContent = JSON.stringify(data, null, 2);
+    }
+
+    document.getElementById('linksList').addEventListener('click', (e) => {
+      const btn = e.target.closest('.copy-btn');
+      if (!btn) return;
+      const url = btn.getAttribute('data-url');
+      if (!url) return;
+      navigator.clipboard.writeText(url).then(() => showToast('已复制到剪贴板', 'success'));
+    });
+
+    function copyAllLinks() {
+      if (!lastResult || !lastResult.invites || lastResult.invites.length === 0) {
+        showToast('没有可复制的链接', 'error');
+        return;
+      }
+      const text = lastResult.invites.map(inv => inv.invite_url || inv.url || inv.InviteURL).filter(Boolean).join('\n');
+      navigator.clipboard.writeText(text).then(() => showToast(`已复制 ${lastResult.invites.length} 个链接`, 'success')).catch(() => showToast('复制失败，请手动复制', 'error'));
+    }
+
+    function downloadResult() {
+      if (!lastResult) {
+        showToast('没有可下载的结果', 'error');
+        return;
+      }
+      const blob = new Blob([JSON.stringify(lastResult, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `codex-invite-result-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('结果已下载', 'success');
+    }
+
+    function clearResult() {
+      document.getElementById('resultSection').classList.add('hidden');
+      document.getElementById('linksList').innerHTML = '';
+      document.getElementById('rawResult').textContent = '';
+      lastResult = null;
+    }
+
+    function escapeHtml(str) {
+      if (typeof str !== 'string') return '';
+      return str.replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+    }
+
+    function fireConfetti() {
+      const colors = ['#14b8a6', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981'];
+      for (let i = 0; i < 60; i++) {
+        const el = document.createElement('div');
+        el.className = 'confetti';
+        el.style.left = Math.random() * 100 + 'vw';
+        el.style.background = colors[Math.floor(Math.random() * colors.length)];
+        el.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+        el.style.animationDuration = (Math.random() * 2 + 2) + 's';
+        el.style.animationDelay = (Math.random() * 0.5) + 's';
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 5000);
+      }
+    }
+
+    updateEmailCount();
+    loadHistory();
+  </script>
+</body>
+</html>
